@@ -2,3 +2,92 @@
 https://github.com/
 
 Создайте репозиторий, например "test"
+настройте ssh-ключ в настройках своей учётной записи, для этого сначала сгенерируйте его:
+ssh-keygen -t rsa
+cat /home/engineer/.ssh/id_rsa.pub
+скопируйте ключ и добавьте его в настройках  своей учётной записи на github
+
+Установите на машину git
+sudo apt update
+sudo apt install git -y
+клонируйте свой репозиторий, например:
+git clone git@github.com:Kollekcioner47/test.git
+
+создайте файл index.html с содержимым:
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web page for test Jenkins</title>
+</head>
+<body bgcolor="black">
+    <center>
+        <h1><font color="white"> Hello from DevOps Engineer!</font></h1>
+            <h2><font color="yellow">www.iklimarev.ru</font></h2>
+    </center>
+    
+</body>
+</html>
+
+сделайте push в репозиторий:
+git push
+убедитесь, что файл добавлен в репозиторий на портале
+
+
+теперь идём на Jenkins http://localhost:8080 в браузере и зарегистрируем token, для работы с GitHub
+Manage Jenkins -> Security -> Git Host Key Verification Configuration -> No verification
+cat .ssh/id_rsa
+скопируйте ключ 
+админка Jenkins -> Menage Jenkins -> Credentials
+Создайте новые credential
+kind: ssh
+username: ваш GitHub user
+private key: вставляем содержимое .ssh/id_rsa
+ID: GitHub
+
+создадим новый билд "github_build"
+Укажите использование Source Code Management
+*Git
+указываем ssh url репозитория на вашем портале GitHub, например:
+git@github.com:Kollekcioner47/test.git
+Выбираем свежий credential
+не забывайте, что по-умолчанию branch на GitHub main, а не master
+
+Добавьте шаг execute shell с текстом:
+echo "------>Build start<------"
+ls -la
+cat index.html
+echo "------>Build finish<------"
+
+добавляем post build action
+send build artifact over SSH
+выбираем наш сервер
+source file *
+exec command sudo systemctl restart apache
+
+запускаем и проверяем страницу в браузере по ip нашего web-server
+меняем код сайта
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web page for test Jenkins</title>
+</head>
+<body bgcolor="grey">
+    <center>
+        <h1><font color="purple"> Hello from DevOps Engineer!</font></h1>
+            <h2><font color="black">www.iklimarev.ru</font></h2>
+    </center>
+    
+</body>
+</html>
+Делаем git push
+
+запускаем build и проверяем страницу в браузере по ip нашего web-server
+
+
+
+
