@@ -1,0 +1,60 @@
+клиент скачивается в админке Jenkins - Menage Jenkins -> Jenkins CLI -> ссылка на скачку
+wget http://localhost:8080/jnlpJars/jenkins-cli.jar
+
+Проверяем работу:
+java -jar jenkins-cli.jar -auth логин:пароль -s http://localhost:8080 who-am-i
+
+Для безопасности создадим отдельного юзера и настроим аутентификацию по токену:
+Jenkins -> manage Jenkins -> users -> create user
+username: serviceuser
+password: Console47
+confirm: Console47
+Full name: my service user
+email: test@test.test
+
+пробуем:
+java -jar jenkins-cli.jar -auth serviceuser:Console47 -s http://localhost:8080 who-am-i
+
+Заходим в админку под свежим юзером, поскольку только он сам может сделать токен
+Создадим токен:
+Jenkins -> manage Jenkins -> users -> serviceuser
+Находим поле api token
+add new token
+Задаём имя, например token-1 и нажимаем generate
+Обязательно сохраняем его:
+echo -n %token% > servicetoken
+Пробуем аутентификацию:
+java -jar jenkins-cli.jar -auth serviceuser:%token% -s http://localhost:8080 who-am-i
+
+Также мы можем определить пользователя и пароль через переменные окружения:
+export JENKINS_USER_ID=serviceuser
+export JENKINS_API_TOKEN=%token%
+java -jar jenkins-cli.jar -s http://localhost:8080 who-am-i
+
+в админке Jenkins - Menage Jenkins -> Jenkins CLI можно посмотреть список команд CLI
+Выгрузим наш билд в xml
+java -jar jenkins-cli.jar -s http://localhost:8080 get-job %buildname% > myjob.xml
+
+Посмотрим результат:
+cat myjob.xml
+Тут же можем его поправить
+
+Создадим билд из XML
+java -jar jenkins-cli.jar -s http://localhost:8080 create-job my_job_from_cli < myjob.xml
+
+Посмотрите его в админке Jenkins
+Попробуйте запустить его и посмотреть результат через CLI
+
+
+
+
+
+
+
+
+
+
+
+
+
+

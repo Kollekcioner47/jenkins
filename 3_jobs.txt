@@ -1,0 +1,85 @@
+Заходим на веб-консоль и создаём job "FirstJob"
+в разделе build выбираем execute shell
+
+echo "Hello, World!"
+
+выбираем save
+build now
+выбираем наш job
+а далее выбираем console output
+Далее выбираем наш job и нажимаем configure в выпадающем меню
+добавляем в shell
+
+echo "This is Build number: $BUILD_NUMBER"
+сохраняем и запускаем
+выбираем console output
+
+выбираем наш job и нажимаем configure в выпадающем меню
+добавляем в shell
+pwd
+sleep 5
+whoami
+sleep 5
+echo "Name of this build: $BUILD_DISPLAY_NAME"
+
+сохраняем и запускаем
+выбираем console output
+нужно увидеть build executer status в левом нижнем углу
+
+файлы наших jobs сохраняются м
+cd /var/lib/jenkins/jobs
+
+чтобы не допускать разрастание папки нужно в свойствах билда настроить discord old builds
+max build
+
+
+создадим сложный билд
+добавим плагин Publish over SSH
+далее идём в manage jankins
+configure system
+ищем настройки SSH
+и копипастим частный ключ (создать его можно командой ssh-keygen -t rsa)
+Задаём имя, ip, username и remote directory /var/www/html
+
+apply and test
+
+создаём новый job test-1
+execute shell
+echo "-------------Bild started-------------"
+cat <<EOF> index.html
+<html>
+<body bgcolor=black>
+<center>
+<h2><font color=yellow>Hello from DevOps Engineer</font><h2>
+
+<font color=blue>www.engineer.ru</font>
+
+</center>
+</body>
+</html>
+EOF
+echo "-------------Bild finished-------------"
+
+новый execute shell
+echo "-------------test started-------------"
+result=`grep "Hello" index.html | wc -l`
+echo $result
+if [ "$result" = "1" ]
+then
+	echo "Test passed"
+else
+	echo "Test failed"
+	exit 1
+fi
+echo "-------------Test finished-------------"
+
+добавляем post build action
+send build artifact over SSH
+выбираем наш сервер
+source file *
+exec command sudo systemctl restart apache
+
+сохраняем и запускаем
+заходим на страницу целевого сервера и проверяем
+
+В моем случае ключ SSH с дефолтными параметрами не сработал, писало ошибку авторизации (при этом из других мест авторизация была корректной). Использовал ssh-keygen -t rsa -b 4096 -m PEM (https://issues.jenkins-ci.org/browse/JENKINS-57495?page=com.atlassian.jira.plugin.system.issuetabpanels%3Aall-tabpanel)

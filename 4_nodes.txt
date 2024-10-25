@@ -1,0 +1,48 @@
+Использование дополнительных нод Jenkins позволит вам:
+Снизить нагрузку на основном сервере  Jenkins
+Выполнять больше builds одновременно  (повысить количество экзекуторов)
+Совершать build для разных платформ на разных серверах, например один сервер для .NET, а другой для Java или Ansible
+
+Node может быть и на Linux и на Windows
+
+На целевые сервера нужно установить Java
+sudo apt install openjdk-17-jre
+
+#На мастер нужно установить плагина ssh-agent
+На мастере нужно зайти под юзером Jenkins
+sudo su - Jenkins
+сгенерируем ключ
+ssh-keygen -t rsa
+
+на целевой ноде нужно создать пользователя jenkins
+useradd -m -s /bin/bash jenkins
+sudo su - jenkins
+passwd
+задаём пароль пользователя, в его профиль мы положим публичный ключ ssh
+mkdir .ssh
+
+с мастера скопируем ключ
+ssh-copy-id jenkins@10.0.2.50
+добавим jenkins в судоеры 
+sudo usermod -aG sudo jenkins
+
+Открываем админку Jenkins и добавляем ноду в manage Jenkins -> nodes
+В свойствах ноды указываем метод подключения ssh и указываем логин и пароль от юзера, либо генерируем ssh ключ на мастере и отправляем на ноду, тогда можно производить аутентификацию по ключу
+Теперь в свойствах build мы можем ограничивать выполнение по тегу конкретной ноды
+
+Создадим новый build test nodes
+Shell execute
+
+echo "Hello, Wolrd!"
+sleep 5
+whoami
+sleep 5
+echo "Name of this build: $BUILD_DISPLAY_NAME"
+ip addr
+hostname
+
+Запускаем и смотрим output
+
+Меняем выполнение на node
+restrict where this project can be run
+выбираем нужный label
