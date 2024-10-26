@@ -58,6 +58,8 @@ git@github.com:Kollekcioner47/test.git
 echo "------>Build start<------"
 ls -la
 cat index.html
+echo "Build by Jenkins Build# $BUILD_ID" >> index.html
+cat index.html
 echo "------>Build finish<------"
 
 добавляем post build action
