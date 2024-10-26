@@ -1,0 +1,103 @@
+1) Triger remotely
+Идём на Jenkins http://localhost:8080 в браузере
+создадим новый билд "Build_auto_trigger1"
+
+Добавьте шаг execute shell с текстом:
+sleep 5
+echo "Hello, World!"
+sleep 5
+echo "Build id: $BUILD_ID"
+
+Ставим галочку Triger remotely в разделе Build Triggers
+auth token: PrIvEt2131232823123HeLlO
+#Здесь мы пишем произвольные буквоцифры
+Обязательно запишите этот токен в какой-то текстовый файл
+Собираем наш URL
+http://%jenkins_ip%:8080/job/Build_auto_trigger1/build?token=PrIvEt2131232823123HeLlO
+
+
+сохраним наш билд и проверим его
+#Если вы хотите обеспечить запуск по триггеру без авторизации, то нужно включить
+#Allow anonymous read access в Manage Jenkins -> Security -> Authotization
+запустите в терминале ваш url, например:
+curl http://%jenkins_ip%:8080/job/Build_auto_trigger1/build?token=PrIvEt2131232823123HeLlO
+Нас ждёт отказ из-за ошибки авторизации
+
+Мы можем добавить в наш url токен:
+Manage Jenkins -> Security -> Users -> Engineer -> Configure
+Добавляем API token
+!Обязательно сохраняем и меняем url:
+curl http://engineer:%token%@jenkins_ip%:8080/job/Build_auto_trigger1/build?token=PrIvEt2131232823123HeLlO
+
+Теперь всё работает!
+
+2) Build after other project are built
+Идём на Jenkins http://localhost:8080 в браузере
+создадим новый билд "Build_auto_trigger2" как копию "Build_auto_trigger1"
+Снимаем галочку Triger remotely в разделе Build Triggers
+Ставим галочку Build after other project are built в разделе Build Triggers
+Project to watch Build_auto_trigger1
+
+сохраним наш билд и проверим его. вызвав запуск первого в терминале:
+curl http://engineer:%token%@jenkins_ip%:8080/job/Build_auto_trigger1/build?token=PrIvEt2131232823123HeLlO
+Проверьте результат запуска в консоли Build_auto_trigger2
+
+3) Build periodicaly
+Идём на Jenkins http://localhost:8080 в браузере
+создадим новый билд "Build_auto_trigger3" как копию "Build_auto_trigger1"
+Снимаем галочку Triger remotely в разделе Build Triggers
+Ставим галочку Build periodicaly в разделе Build Triggers
+В schedule пишем:
+H/5 * * * *
+#минута час день месяц день_недели
+#Каждые 5 минут
+
+4) GitHub trigger
+Идём на Jenkins http://localhost:8080 в браузере
+создадим новый билд "Build_auto_trigger4" как копию "Build_auto_trigger1"
+Снимаем галочку Triger remotely в разделе Build Triggers
+Ставим галочку Pool SCM в разделе Build Triggers
+В schedule пишем:
+* * * * *
+Укажите использование Source Code Management
+*Git
+указываем ssh url репозитория на вашем портале GitHub, например:
+git@github.com:Kollekcioner47/test.git
+Выбираем  credential
+не забывайте, что по-умолчанию branch на GitHub main, а не master
+
+Добавьте шаг execute shell с текстом:
+echo "start"
+ls -la
+echo "stop"
+сохраняем и ждём
+пока добавим в репозиторий новый файлик с текстом:
+echo "Hello from trigger" > test_trigger
+git add test_trigger
+git commit -m "add"
+git push
+
+Идём в билд и смотрим, что он сделал.
+
+5) Webhook GitHub
+Идём на Jenkins http://localhost:8080 в браузере
+Установим плагин для GitHub
+#Может быть установлен по-умолчанию, проверьте в installed plugins
+Manage Jenkins -> Plugins -> Available plugins -> github
+создадим новый билд "Build_auto_trigger4" как копию "github_build", который развертывает сайт на нашем appserver
+Поставьте галочку для GitHub project, скопируйте ссылку из source code management, например:
+git@github.com:Kollekcioner47/test.git
+Ставим галочку GitHub hook в разделе Build Triggers
+сохраняем
+Далее нам нужно настройт GitHub hook в своей учётной записи на https://github.com/
+
+
+
+
+
+
+
+
+
+
+
