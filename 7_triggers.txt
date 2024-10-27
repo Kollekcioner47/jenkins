@@ -79,7 +79,7 @@ git push
 
 Идём в билд и смотрим, что он сделал.
 
-5) Webhook GitHub
+5) Webhook GitHub #НУЖЕН белый IP, переписываю на GitLab
 Идём на Jenkins http://localhost:8080 в браузере
 Установим плагин для GitHub
 #Может быть установлен по-умолчанию, проверьте в installed plugins
@@ -89,9 +89,11 @@ Manage Jenkins -> Plugins -> Available plugins -> github
 git@github.com:Kollekcioner47/test.git
 Ставим галочку GitHub hook в разделе Build Triggers
 сохраняем
-Далее нам нужно настройт GitHub hook в своей учётной записи на https://github.com/
-
-
+Далее нам нужно настроить GitHub hook в настройках репозитория на https://github.com/
+settings -> webhooks -> add webhook
+Playload URL указываем адрес Jenkins
+http://белыйip:8080/github-webhook
+теперь при коммите в репозитории автоматически запустится билд в Jenkins
 
 
 

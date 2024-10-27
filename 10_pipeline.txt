@@ -1,0 +1,224 @@
+Declarative Pipeline позволяет описывать сценарий конвейера через ключевые слова и фиксированную структуру. Он является наиболее рекомендуемым вариантом, так как обеспечивает упрощенный и читаемый синтаксис.
+
+Пример простого Declarative Pipeline:
+pipeline {
+    agent any            // Указывает, на каком агенте запускать конвейер
+    environment {
+        PROJECT_NAME = 'MyProject'
+    }
+    options {
+        timeout(time: 1, unit: 'HOURS')   // Устанавливает тайм-аут выполнения
+    }
+    stages {
+        stage('Build') {                  // Определение стадии "Сборка"
+            steps {
+                echo 'Building...'
+                // Команды для сборки проекта
+            }
+        }
+        stage('Test') {                   // Определение стадии "Тестирование"
+            steps {
+                echo 'Testing...'
+                // Команды для запуска тестов
+            }
+        }
+        stage('Deploy') {                 // Определение стадии "Деплой"
+            steps {
+                echo 'Deploying...'
+                // Команды для развертывания приложения
+            }
+        }
+    }
+    post {                               // Действия после завершения сборки
+        always {
+            echo 'Cleaning up...'
+        }
+        success {
+            echo 'Build succeeded!'
+        }
+        failure {
+            echo 'Build failed!'
+        }
+    }
+}
+
+
+Структура Scripted Pipeline
+
+Scripted Pipeline предоставляет больше свободы, позволяя писать код в виде процедур и использовать условия, циклы, функции, что подходит для более сложных процессов.
+
+Пример Scripted Pipeline:
+node {                          // Задаёт агент, на котором будет выполняться сборка
+    try {
+        stage('Checkout') {     // Стадия "Клонирование"
+            checkout scm
+        }
+        stage('Build') {        // Стадия "Сборка"
+            echo 'Building...'
+            // Команды для сборки
+        }
+        stage('Test') {         // Стадия "Тестирование"
+            echo 'Testing...'
+            // Команды для тестирования
+        }
+        stage('Deploy') {       // Стадия "Деплой"
+            echo 'Deploying...'
+            // Команды для деплоя
+        }
+    } catch (e) {               // Обработка ошибок
+        echo "Error: ${e}"
+    } finally {
+        echo 'Cleaning up...'
+    }
+}
+
+
+Идём на Jenkins http://localhost:8080 в браузере
+1) Создадим новый билд "Pipeline_job_1", тип - Pipeline
+
+в Pipeline script напишем:
+pipeline {
+	agent nay
+	stages {
+		stage('Pipeline_job_1') {
+		steps {
+			echo 'Hello, World'
+		}
+}
+}
+}
+
+
+Сохраняем и запускаем
+
+
+2) Создадим новый билд "Pipeline_job_2", тип - Pipeline
+
+pipeline {
+	agent nay
+	stages {
+stage('1-Build') {
+		steps {
+			echo 'Start Build'
+			echo 'Building...."
+			echo 'End of Build'
+		}
+}
+}
+stage('2-Test') {
+		steps {
+			echo 'Start Test'
+			echo 'Testing...."
+			echo 'End of Test'
+		}
+}
+}
+stage('3-Deploy') {
+		steps {
+			echo 'Start Deploy'
+			echo 'Deploying...."
+			echo 'End of Deploy'
+		}
+}
+}
+}
+
+Сохраняем и запускаем
+
+3) Создадим новый билд "Pipeline_job_2", тип - Pipeline
+Мы будем использовать Докер для работы
+нужно установить плагин Docker Pipeline и сам Docker на машину
+pipeline {
+    agent { docker { image 'python:3.7' } }
+
+    stages {
+        stage('1-Build') {
+            steps {
+                echo "Start of Stage Build"
+                echo "Building......."
+                sh   "python --version"
+                echo "End of Stage Build"
+            }
+        }
+        stage('2-Test') {
+            steps {
+                echo "Start of Stage Test"
+                echo "Testing......."
+                echo "End of Stage Build"
+            }
+        }
+        stage('3-Deploy') {
+            steps {
+                echo "Start of Stage Deploy"
+                echo "Deploying......."
+                echo "End of Stage Build"
+            }
+        }
+	stage('4-END') {
+            steps {
+                echo "Congrtas ending of build!"
+            }
+        }
+
+   }
+}
+
+Сохраняем и запускаем
+
+4) Создадим новый билд "Pipeline_job_3", тип - Pipeline
+
+pipeline {
+    agent any
+    environment {
+      PROJECT_NAME = "Learning of Jenkins"
+      MAINTEINER_NAME   = "Enter your Name"
+    }
+
+    stages {
+        stage('1-Build') {
+            steps {
+                echo "Start of Stage Build..."
+                echo "Building......."
+                echo "End of Stage Build..."
+            }
+        }
+        stage('2-Test') {
+            steps {
+                echo "Start of Stage Test..."
+                echo "Testing......."
+                echo "Privet ${PROJECT_NAME}"
+                echo "Owner is ${MAINTEINER_NAME}"
+                echo "End of Stage Build..."
+            }
+        }
+        stage('3-Deploy') {
+            steps {
+                echo "Start of Stage Deploy..."
+                echo "Deploying......."
+                sh "ls -la"
+                sh '''
+                   echo "Line1"
+                   echo "Line2"
+                '''
+                echo "End of Stage Build..."
+            }
+        }
+        stage('4-Celebrate') {
+            steps {
+                echo "Happy Building!"
+            }
+        }	
+    }
+}
+
+Сохраняем и запускаем
+
+5) Сохраните любой скрипт в виде файла с именем Jenkinsfile и загрузите на свой репозиторий GitHub
+и попробуйте создать билд "Pipeline_job_3", но в качестве "Definition" выбирите не Pipeline sctipr,
+а Pipline script from SCM
+указываем ssh url репозитория на вашем портале GitHub, например:
+git@github.com:Kollekcioner47/test.git
+Выбираем  credential
+не забывайте, что по-умолчанию branch на GitHub main, а не master
+Сохраняем и запускаем
+

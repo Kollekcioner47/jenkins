@@ -1,0 +1,55 @@
+Идём на Jenkins http://localhost:8080 в браузере
+Для того, чтобы попасть с script console, вы можете найти её в manage Jenkins
+либо добавив /script к url
+http://localhost:8080
+
+Пример кода:
+println {"Hello DevOps from Jenkins!"}
+
+Запуск локальных команд:
+"ls -la /home".execute().text
+//Это комент
+Вариант для чтения файла:
+new File('/etc/passwd').text
+
+Все методы Groovy:
+Jenkins.intance.metaClass.methods*.name
+
+Получить экзекуторы:
+Jenkins.intance.getNumExecutors()
+
+Задать количество экзекуторов:
+Jenkins.intance.setNumExecutors(4)
+
+Вывести результаты Job
+//тут мы указываем имя любого джоба
+job = Jenkins.intance.getItemByFullName("gh_deploy")
+job.getBuilds().each {
+//it - это идентификатор в Groovy
+println("Build " + it + " Result " + it.result)
+}
+
+Обнулить счётчик билдов:
+job = Jenkins.intance.getItemByFullName("gh_deploy")
+job.getBuilds().each {
+if{it.result == Result.SUCCESS} {
+//Вместо SUCCESS(успешные) можно FILURE(неудачи)
+it.delete()
+}
+}
+
+Можно полностью обнулить счётчик:
+job = Jenkins.intance.getItemByFullName("gh_deploy")
+job.builds.each() { build ->
+build.delete
+}
+job.updateNextBuildNumber(1)
+
+
+
+
+
+
+
+
+

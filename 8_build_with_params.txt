@@ -1,0 +1,50 @@
+Создайте папку для обработки в домашней папке пользователя, например /home/engineer/jenkins
+Дадим на неё полные права для учебных целей
+chmod 777 /home/engineer/jenkins
+
+Идём на Jenkins http://localhost:8080 в браузере
+создадим новый билд "Build_with_params"
+Добавьте шаг execute shell с текстом:
+ls -l /etc > /home/engineer/jenkins/file1.txt
+cat /home/engineer/jenkins/file1.txt
+Сохраняем и выполняем, вы увидите содержимое  папки в файл console output вашего билда
+
+Но мы можем передавать имя файла параметром, чтобы не нужно было редактировать билд, когда мы хотим сменить файл
+Заходим в configure нашего билда и ставим галочку This project is parameterized
+Тип параметра string parameter
+name: FOLDERNAME
+Default Value: /home
+
+меняем в шаге execute shell:
+ls -l $FILENAME > /home/engineer/jenkins/file1.txt
+cat /home/engineer/jenkins/file1.txt
+
+Сохраняем, запускам, проверяем
+
+После отредактируем наш билд и добавим ещё один параметр Choice Parameter
+name: FILENAME
+Сделайте два-три варианта выбора, например:
+/home/engineer/jenkins/file1.txt
+/home/engineer/jenkins/list_folder.txt
+
+меняем в шаге execute shell:
+ls -l $FILENAME > $FILENAME
+cat $FILENAME
+Сохраняем, запускам, проверяем
+
+После отредактируем наш билд и добавим ещё один параметр File Parameter
+file location: UPLOADED_FILE
+description: please upload your file
+меняем в шаге execute shell:
+ls -l $FILENAME > /tmp/file1.txt
+cat /tmp/file1.txt
+ls -l
+cat UPLOADED_FILE #!Без $!
+Сохраняем, запускам, выбираем файл, проверяем
+
+
+
+
+
+
+
