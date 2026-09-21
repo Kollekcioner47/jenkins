@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!--
+  Вторая версия страницы — для практик об обновлении сайта и об откате.
+
+  В прежней версии курса вторая версия отличалась только цветами, и по ней
+  нельзя было понять, применилось ли изменение на самом деле. Здесь кроме
+  оформления меняется заголовок: сквозной тест ищет строку
+  «Hello from DevOps Engineer (v2)», поэтому старая версия на сервере
+  не пройдёт проверку.
+
+  Как пользоваться: содержимое этого файла копируется поверх index.html
+  в репозитории или передаётся конвейеру параметром SITE_VERSION.
+-->
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сайт лаборатории CI/CD (v2)</title>
+    <style>
+        body {
+            margin: 0;
+            background: #f4f1ea;
+            color: #1b1b1b;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        .card {
+            text-align: center;
+            padding: 2rem 3rem;
+            border: 3px solid #1b1b1b;
+            border-radius: 18px;
+        }
+        h1 { font-size: 2rem; margin: 0 0 .5rem; color: #8a3ffc; }
+        .site { color: #1b1b1b; font-size: 1.1rem; }
+        .version { margin-top: 1rem; color: #8a3ffc; font-weight: 700; }
+        .build { margin-top: 1.5rem; font-size: .95rem; color: #5a5a5a; }
+        .build span { color: #0b6e4f; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Hello from DevOps Engineer (v2)</h1>
+        <p class="site">www.iklimarev.ru</p>
+        <p class="version">Версия сайта: 2</p>
+        <p class="build">
+            Сборка Jenkins: <span id="build-number">__BUILD_NUMBER__</span><br>
+            Ревизия: <span id="git-commit">__GIT_COMMIT__</span>
+        </p>
+    </div>
+</body>
+</html>

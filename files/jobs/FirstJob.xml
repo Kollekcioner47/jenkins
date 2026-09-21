@@ -1,0 +1,46 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  Описание задания FirstJob — то самое, что создаётся в первой практике.
+
+  Как это работает: Jenkins хранит каждое задание как XML-файл
+  в /var/lib/jenkins/jobs/<имя>/config.xml. Портал «рисует» по нему форму,
+  а форма изменяет этот XML. Ничего другого за интерфейсом нет:
+  знание формата даёт возможность создавать задания скриптом.
+
+  Про версию XML. Jenkins выгружает свои файлы с объявлением
+  version='1.1'. Многие инструменты (в том числе Python) такую версию
+  не принимают и падают на разборе. Здесь объявлена 1.0: Jenkins
+  разбирает её без возражений, а остальные инструменты — тем более.
+
+  Загрузить задание из этого файла:
+      java -jar jenkins-cli.jar -s http://10.0.2.5:8080 \
+           -auth engineer:ТОКЕН create-job FirstJob < files/jobs/FirstJob.xml
+-->
+<project>
+  <description>Первое задание курса: печатает приветствие и номера сборки.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>echo "------------- Build started -------------"
+echo "Hello, World!"
+echo "Номер этой сборки: $BUILD_NUMBER"
+echo "Отображаемое имя:  $BUILD_DISPLAY_NAME"
+echo "Имя задания:       $JOB_NAME"
+echo "Рабочий каталог:   $WORKSPACE"
+whoami
+pwd
+hostname
+echo "------------- Build finished -------------"</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

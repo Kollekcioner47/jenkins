@@ -1,0 +1,92 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!--
+  Задание с параметрами (практика 8) в виде XML.
+
+  Сравните с прежней версией курса: там параметр назывался FOLDERNAME,
+  а в шаге сборки использовался $FILENAME. Задание запускалось, переменная
+  была пустой, и в файл уходила команда вида «ls -l ». Ошибки в этом нет
+  ни одной — Jenkins просто подставил пустоту.
+  Здесь имена параметров и подстановки совпадают: TARGET_PATH и REPORT_FILE.
+
+  Примечание про choices: набор вариантов Jenkins хранит не как обычный
+  список, а как объект Java (java.util.Arrays$ArrayList) — это следствие
+  того, что XML пишет библиотека XStream. Для человека это выглядит
+  громоздко, именно поэтому варианты удобнее править в портале,
+  а XML использовать для переноса готовых заданий.
+-->
+<project>
+  <description>Параметризованное задание: показывает содержимое каталога и пишет отчёт.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_PATH</name>
+          <description>Что показать: каталог или файл на том агенте, где пойдёт сборка</description>
+          <defaultValue>/etc</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>REPORT_FILE</name>
+          <description>Имя файла отчёта внутри рабочего каталога сборки</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>report.txt</string>
+              <string>listing.txt</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VERBOSE</name>
+          <description>Подробный вывод в консоль сборки</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+    <jenkins.model.BuildDiscarderProperty>
+      <strategy class="hudson.tasks.LogRotator">
+        <daysToKeep>14</daysToKeep>
+        <numToKeep>20</numToKeep>
+        <artifactDaysToKeep>-1</artifactDaysToKeep>
+        <artifactNumToKeep>-1</artifactNumToKeep>
+      </strategy>
+    </jenkins.model.BuildDiscarderProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>set -eu
+
+echo "Параметры этой сборки:"
+echo "  TARGET_PATH = $TARGET_PATH"
+echo "  REPORT_FILE = $REPORT_FILE"
+echo "  VERBOSE     = $VERBOSE"
+
+# Проверяем входные данные, а не надеемся на них.
+# Параметр — это пользовательский ввод, а он бывает любым.
+if [ ! -e "$TARGET_PATH" ]; then
+    echo "ОШИБКА: пути $TARGET_PATH не существует на $(hostname)"
+    exit 1
+fi
+
+if [ "$VERBOSE" = "true" ]; then
+    ls -la "$TARGET_PATH" > "$REPORT_FILE"
+else
+    ls -l "$TARGET_PATH" > "$REPORT_FILE"
+fi
+
+echo "--- начало $REPORT_FILE ---"
+cat "$REPORT_FILE"
+echo "--- конец $REPORT_FILE ---"
+echo "Отчёт сохранён в $WORKSPACE/$REPORT_FILE на $(hostname)"</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

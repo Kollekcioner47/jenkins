@@ -1,0 +1,218 @@
+/*
+ * Jenkinsfile.build-test-deploy — полный конвейер сайта (практики 10 и 11).
+ *
+ * Что делает: забирает код из Gitea, собирает каталог для выката,
+ * проверяет его, выкатывает на node1 и node2, проверяет сайт снаружи
+ * и при провале автоматически откатывает оба сервера к предыдущему релизу.
+ *
+ * СХЕМА ВЫКАТА, КОТОРУЮ ВАЖНО ПОНЯТЬ
+ *
+ *   сборка идёт на одном агенте (метка web — это node1 или node2);
+ *   выкат выполняется ОТТУДА ЖЕ по ssh на оба сервера;
+ *   на серверы копируется один каталог: скрипты выката и файлы сайта;
+ *   сам выкат делает deploy_site.sh на сервере — он переключает симлинк.
+ *
+ * Почему не «Publish over SSH», как было в прежней версии курса: этот
+ * плагин не выпускался годами, и его задачу решают штатные ssh-agent
+ * и rsync. Подробнее — в практике 11.
+ *
+ * ВАЖНО: этот файл рассчитан на задание типа «Pipeline script from SCM»,
+ * потому что первой же стадией идёт checkout scm.
+ */
+
+pipeline {
+    agent { label 'web' }
+
+    options {
+        timestamps()
+        timeout(time: 20, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        choice(name: 'SITE_VERSION',
+               choices: ['v1', 'v2'],
+               description: 'Какую версию страницы выкатывать')
+        string(name: 'WEB_NODES',
+               defaultValue: '10.0.2.13 10.0.2.14',
+               description: 'Адреса серверов, куда выкатывать сайт (через пробел)')
+    }
+
+    environment {
+        SITE_DIR      = 'build/deploy'
+        DEPLOY_USER   = 'jenkins'
+        SITE_NAME     = 'site'
+        EXPECTED_TEXT = 'Hello from DevOps Engineer'
+    }
+
+    stages {
+        stage('1. Забрать код') {
+            steps {
+                deleteDir()
+                checkout scm
+            }
+        }
+
+        stage('2. Собрать каталог выката') {
+            steps {
+                sh '''
+                    set -eu
+                    rm -rf "${SITE_DIR}"
+                    mkdir -p "${SITE_DIR}/www"
+
+                    # Выбор версии страницы — параметр сборки, а не правка кода.
+                    if [ "${SITE_VERSION}" = "v2" ]; then
+                        cp files/www/index-v2.html "${SITE_DIR}/www/index.html"
+                    else
+                        cp files/www/index.html "${SITE_DIR}/www/index.html"
+                    fi
+
+                    # Короткая ревизия берётся из самого репозитория,
+                    # а не из переменной сборки: так видно настоящий коммит.
+                    commit="$(git rev-parse --short HEAD 2>/dev/null || echo unknown)"
+
+                    # Подстановка версии в страницу. Маркеры __BUILD_NUMBER__
+                    # и __GIT_COMMIT__ описаны в самом файле страницы.
+                    sed -i "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" "${SITE_DIR}/www/index.html"
+                    sed -i "s/__GIT_COMMIT__/${commit}/g"          "${SITE_DIR}/www/index.html"
+
+                    # Скрипты выката и проверки едут на сервер вместе с сайтом:
+                    # версия скрипта так же важна, как версия страницы.
+                    cp files/scripts/deploy_site.sh "${SITE_DIR}/"
+                    cp files/scripts/smoke_test.sh  "${SITE_DIR}/"
+
+                    cat > "${SITE_DIR}/build-info.txt" <<EOF
+build_number=${BUILD_NUMBER}
+job=${JOB_NAME}
+commit=${commit}
+version=${SITE_VERSION}
+agent=${NODE_NAME}
+built_at=$(date '+%Y-%m-%d %H:%M:%S %Z')
+EOF
+
+                    echo "--- содержимое каталога выката ---"
+                    find "${SITE_DIR}" -type f | sort
+                    echo "--- build-info.txt ---"
+                    cat "${SITE_DIR}/build-info.txt"
+                '''
+            }
+        }
+
+        stage('3. Проверить до выката') {
+            steps {
+                sh '''
+                    set -eu
+                    test -f "${SITE_DIR}/www/index.html"
+                    test -f "${SITE_DIR}/build-info.txt"
+
+                    # Маркер не должен остаться: если остался, подстановка
+                    # не сработала, и на сайт уехала бы готовая ошибка.
+                    if grep -q '__BUILD_NUMBER__' "${SITE_DIR}/www/index.html"; then
+                        echo "ОШИБКА: в странице остался маркер подстановки"
+                        exit 1
+                    fi
+                    if ! grep -q "${EXPECTED_TEXT}" "${SITE_DIR}/www/index.html"; then
+                        echo "ОШИБКА: в странице нет ожидаемого текста"
+                        exit 1
+                    fi
+                    echo "проверка страницы пройдена"
+                '''
+                archiveArtifacts artifacts: "${SITE_DIR}/**", fingerprint: true
+            }
+        }
+
+        // Два почти одинаковых блока. Именно эту копипасту убирает
+        // общая библиотека в практике 13.
+        stage('4. Выкатить сайт') {
+            parallel {
+                stage('node1 (10.0.2.13)') {
+                    steps { deployToHost('10.0.2.13') }
+                }
+                stage('node2 (10.0.2.14)') {
+                    steps { deployToHost('10.0.2.14') }
+                }
+            }
+        }
+
+        stage('5. Проверить снаружи') {
+            steps {
+                sh '''
+                    set -eu
+                    # Проверяем не свой каталог, а то, что отдаёт веб-сервер.
+                    # Только такая проверка видит и права, и кэш, и забытый
+                    # непереключённый симлинк.
+                    for host in ${WEB_NODES}; do
+                        echo "=== проверка ${host} ==="
+                        bash "${SITE_DIR}/smoke_test.sh" \
+                            "http://${host}/" "${EXPECTED_TEXT}" "${BUILD_NUMBER}"
+                    done
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "Сайт сборки ${BUILD_NUMBER} выкачен на: ${WEB_NODES}"
+        }
+        failure {
+            // Автоматический откат: конвейер сам возвращает серверы
+            // к предыдущему релизу. Ровно для этого выкат делается
+            // в отдельные каталоги с симлинком, а не копированием поверх.
+            script {
+                sshagent(credentials: ['node-ssh']) {
+                    sh '''
+                        set -u
+                        for host in ${WEB_NODES}; do
+                            echo "=== откат на ${host} ==="
+                            ssh -o StrictHostKeyChecking=accept-new \
+                                "${DEPLOY_USER}@${host}" \
+                                "bash /tmp/site-deploy-${BUILD_NUMBER}/deploy_site.sh rollback" \
+                                || echo "откат на ${host} не выполнен — разбирайтесь вручную"
+                        done
+                    '''
+                }
+            }
+        }
+    }
+}
+
+/*
+ * Функция выката на один сервер. В декларативном конвейере её определяют
+ * ПОСЛЕ блока pipeline — иначе Groovy не соберёт скрипт.
+ *
+ * Разбор по шагам.
+ *   sshagent — подставляет приватный ключ в ssh-agent на время блока.
+ *              Сам ключ не появляется ни в переменных окружения, ни в логе:
+ *              конвейер вообще не знает его текста.
+ *   rm/mkdir — каталог выката на сервере создаётся заново. Так же
+ *              за возможным мусором от прежних сборок.
+ *   rsync    — копирует каталог выката в /tmp на сервере.
+ *   deploy   — переключение симлинка на сервере: именно это действие
+ *              меняет то, что видят посетители.
+ *   smoke    — проверка на самом сервере, локально. Она отвечает
+ *              на вопрос «отдаёт ли nginx новую версию», не дожидаясь
+ *              сетевых чудес.
+ */
+def deployToHost(String host) {
+    sshagent(credentials: ['node-ssh']) {
+        sh """
+            set -eu
+            target=/tmp/site-deploy-${BUILD_NUMBER}
+
+            ssh -o StrictHostKeyChecking=accept-new \\
+                ${DEPLOY_USER}@${host} "rm -rf \${target} && mkdir -p \${target}"
+
+            rsync -a --delete -e "ssh -o StrictHostKeyChecking=accept-new" \\
+                ${SITE_DIR}/ ${DEPLOY_USER}@${host}:\${target}/
+
+            ssh -o StrictHostKeyChecking=accept-new ${DEPLOY_USER}@${host} \\
+                "cd \${target} && bash deploy_site.sh deploy www"
+
+            ssh -o StrictHostKeyChecking=accept-new ${DEPLOY_USER}@${host} \\
+                "bash \${target}/smoke_test.sh http://127.0.0.1/ '${EXPECTED_TEXT}' ${BUILD_NUMBER}"
+        """
+    }
+}

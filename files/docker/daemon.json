@@ -1,0 +1,11 @@
+{
+  "insecure-registries": [
+    "10.0.2.5:5000"
+  ],
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "10m",
+    "max-file": "3"
+  },
+  "live-restore": true
+}

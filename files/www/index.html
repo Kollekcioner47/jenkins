@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<!--
+  Стартовая страница сайта, который мы выкатываем на node1 и node2.
+
+  ВАЖНО ПРО МАРКЕР __BUILD_NUMBER__: он не случаен. Конвейер Jenkins
+  заменяет его номером сборки при каждом выкате. Так на странице видно,
+  какая именно сборка сейчас отдаётся, и это же проверяет сквозной тест
+  (scripts/smoke_test.sh): если маркер остался в тексте, значит подстановка
+  не сработала и выкатывать нечего.
+
+  ИСПРАВЛЕНО: в прежней версии курса страница была свёрстана тегами
+  <font> и атрибутом bgcolor. Оба устарели и удалены из HTML
+  много лет назад; заменено на обычный CSS.
+-->
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Сайт лаборатории CI/CD</title>
+    <style>
+        body {
+            margin: 0;
+            background: #101014;
+            color: #f2f2f2;
+            font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        .card { text-align: center; padding: 2rem; }
+        h1 { font-size: 2rem; margin: 0 0 .5rem; color: #ffe066; }
+        .site { color: #6cc4ff; font-size: 1.1rem; }
+        .build {
+            margin-top: 2rem;
+            font-size: .95rem;
+            color: #9aa0a6;
+        }
+        .build span { color: #7ee787; font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h1>Hello from DevOps Engineer</h1>
+        <p class="site">www.iklimarev.ru</p>
+        <p class="build">
+            Сборка Jenkins: <span id="build-number">__BUILD_NUMBER__</span><br>
+            Ревизия: <span id="git-commit">__GIT_COMMIT__</span>
+        </p>
+    </div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+; Служба systemd для Gitea — практика 6.
+;
+; Куда класть: /etc/systemd/system/gitea.service
+; После копирования:  sudo systemctl daemon-reload
+;                     sudo systemctl enable --now gitea
+;
+; ЗАЧЕМ СВОЯ СЛУЖБА, А НЕ ЗАПУСК ВРУЧНУЮ: Gitea — это сервер,
+; от которого зависят и Jenkins, и все рабочие места. Запущенный руками
+; процесс умрёт при первом закрытии терминала или перезагрузке,
+; и причину будут искать в Jenkins, а не в нём.
+;
+; Обратите внимание на три параметра безопасности:
+;   User=git                     — процесс работает от непривилегированного пользователя;
+;   ProtectSystem=strict         — вся файловая система только для чтения;
+;   ReadWritePaths=/var/lib/gitea — и только рабочие каталоги доступны на запись.
+; Вместе они означают, что уязвимость в Gitea не даёт сразу записать
+; что угодно в /etc. В прежней версии курса сервис запускался как root —
+; это была лишняя свобода для атакующего.
+
+[Unit]
+Description=Gitea (лаборатория CI/CD)
+Documentation=https://docs.gitea.com
+After=network.target
+Wants=network-online.target
+
+# Приложение стартует, только если конфигурация на месте.
+#
+# ЗАЧЕМ ЭТА СТРОКА ИМЕННО ЗДЕСЬ: условия вида Condition* systemd читает
+# ТОЛЬКО в секции [Unit]. Если написать её в [Service], systemd проигнорирует
+# строку с предупреждением в журнале, и служба запустится с пустой
+# конфигурацией — то есть защита, на которую рассчитывают, не сработает.
+ConditionFileNotEmpty=/etc/gitea/app.ini
+
+[Service]
+Type=simple
+User=git
+Group=git
+WorkingDirectory=/var/lib/gitea
+
+Environment=GITEA_WORK_DIR=/var/lib/gitea
+Environment=USER=git
+Environment=HOME=/home/git
+
+ExecStart=/usr/local/bin/gitea web --config /etc/gitea/app.ini
+Restart=always
+RestartSec=2
+
+# --- ограничения прав -------------------------------------------------------
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/gitea /home/git /etc/gitea
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

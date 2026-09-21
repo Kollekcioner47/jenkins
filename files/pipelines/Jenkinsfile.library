@@ -1,0 +1,116 @@
+/*
+ * Jenkinsfile.library — тот же выкат, что в Jenkinsfile.build-test-deploy,
+ * но без копипасты (практика 13).
+ *
+ * Сравните два файла. В предыдущем выкат на node1 и выкат на node2 —
+ * это два почти одинаковых блока по двадцать строк, и любая правка
+ * требует синхронного изменения обоих. Здесь выкат — одна строка,
+ * потому что он описан один раз в общей библиотеке.
+ *
+ * Первая строка со собакой — это не комментарий, а аннотация Groovy:
+ * она подключает библиотеку из репозитория. Нижнее подчёркивание после неё
+ * обязательно: без него Groovy считает аннотацию применённой к следующей
+ * конструкции и конвейер не соберётся.
+ */
+
+@Library('lab-shared-library@main') _
+
+pipeline {
+    agent { label 'web' }
+
+    options {
+        timestamps()
+        timeout(time: 20, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    parameters {
+        choice(name: 'SITE_VERSION',
+               choices: ['v1', 'v2'],
+               description: 'Какую версию страницы выкатывать')
+        string(name: 'WEB_NODES',
+               defaultValue: '10.0.2.13 10.0.2.14',
+               description: 'Адреса серверов через пробел')
+    }
+
+    environment {
+        SITE_DIR      = 'build/deploy'
+        EXPECTED_TEXT = 'Hello from DevOps Engineer'
+    }
+
+    stages {
+        stage('1. Забрать код') {
+            steps {
+                deleteDir()
+                checkout scm
+            }
+        }
+
+        stage('2. Собрать каталог выката') {
+            steps {
+                // Шаг из библиотеки: печатает сведения о сборке.
+                sayHello env.JOB_NAME
+                sh '''
+                    set -eu
+                    rm -rf "${SITE_DIR}"
+                    mkdir -p "${SITE_DIR}/www"
+                    if [ "${SITE_VERSION}" = "v2" ]; then
+                        cp files/www/index-v2.html "${SITE_DIR}/www/index.html"
+                    else
+                        cp files/www/index.html "${SITE_DIR}/www/index.html"
+                    fi
+                    sed -i "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" "${SITE_DIR}/www/index.html"
+                    sed -i "s/__GIT_COMMIT__/$(git rev-parse --short HEAD 2>/dev/null || echo unknown)/g" \
+                        "${SITE_DIR}/www/index.html"
+                    cp files/scripts/deploy_site.sh "${SITE_DIR}/"
+                    cp files/scripts/smoke_test.sh  "${SITE_DIR}/"
+                '''
+            }
+        }
+
+        stage('3. Выкатить на все серверы') {
+            steps {
+                // Один шаг библиотеки вместо двух одинаковых блоков.
+                // Имена серверов приходят строкой параметра.
+                deployToNodes(
+                    hosts: (env.WEB_NODES ?: params.WEB_NODES).split(' ') as List,
+                    siteDir: env.SITE_DIR,
+                    expectedText: env.EXPECTED_TEXT,
+                    buildNumber: env.BUILD_NUMBER
+                )
+            }
+        }
+
+        stage('4. Показать итог') {
+            steps {
+                script {
+                    // Класс из каталога src библиотеки: обычный Groovy-класс,
+                    // который умеет описывать сборку. Такие классы удобны
+                    // там, где нужна логика, а не последовательность шагов.
+                    def info = new ru.iklimarev.BuildInfo(
+                        job: env.JOB_NAME,
+                        buildNumber: env.BUILD_NUMBER,
+                        commit: sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim(),
+                        agent: env.NODE_NAME
+                    )
+                    echo info.summary()
+                }
+            }
+        }
+    }
+
+    post {
+        failure {
+            // Откат тоже живёт в библиотеке: раз логика одна,
+            // то и исправлять её нужно в одном месте.
+            script {
+                rollbackNodes(
+                    hosts: (params.WEB_NODES).split(' ') as List,
+                    buildNumber: env.BUILD_NUMBER
+                )
+            }
+        }
+    }
+}

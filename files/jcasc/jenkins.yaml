@@ -1,0 +1,236 @@
+# Конфигурация Jenkins как код (JCasC) — практика 14.
+#
+# Файл читает плагин configuration-as-code. Путь к файлу задаётся
+# переменной окружения CASC_JENKINS_CONFIG (см. практику 14):
+#     CASC_JENKINS_CONFIG=/var/lib/jenkins/casc/jenkins.yaml
+#
+# ЧТО ЭТО ДАЁТ
+# Настройки Jenkins перестают быть результатом ручных щелчков в портале
+# и становятся файлом, который можно положить в git, проверить глазами
+# и применить на новой машине за минуту.
+#
+# ПОДСТАНОВКА ЗНАЧЕНИЙ
+# Конструкции вида ${ИМЯ_ПЕРЕМЕННОЙ} подставляет сам JCasC из переменных
+# окружения процесса Jenkins. Это и есть способ не хранить пароли в файле:
+# в файле — имена переменных, а значения лежат в /etc/default/jenkins
+# (права 0600, владелец root) или в файле, который монтируется в контейнер.
+#
+# ВАЖНО ПРО ПОРЯДОК. JCasC применяет файл на старте и при нажатии
+# «Reload Configuration». Всё, что описано здесь, будет приведено
+# к описанному виду: правки, сделанные руками в портале, исчезнут.
+# Поэтому не описывайте в файле то, что ещё не решили зафиксировать.
+
+jenkins:
+  # Строка, которую видит каждый пользователь на главной странице портала.
+  # В рабочей среде здесь пишут предупреждение, а не приветствие.
+  systemMessage: >-
+    Учебный стенд CI/CD. HTTPS не настроен, соединение открытое:
+    не вводите здесь рабочие пароли и не храните рабочие ключи.
+
+  # Сколько сборок контроллер выполняет сам. Ноль — правильный ответ
+  # для рабочей среды: контроллер не собирает. В лаборатории оставляем
+  # один экзекьютор, чтобы студент видел разницу между «собралось
+  # на контроллере» и «собралось на агенте».
+  numExecutors: 1
+
+  # NORMAL — использовать агентов по мере возможности;
+  # EXCLUSIVE — только задания с меткой controller.
+  mode: NORMAL
+
+  # Повтор checkout при сбое сети: репозиторий в лаборатории свой,
+  # но у Gitea тоже бывают перезапуски.
+  scmCheckoutRetryCount: 2
+
+  labelString: "controller"
+
+  location:
+    url: "http://10.0.2.5:8080/"
+    adminAddress: "engineer@lab.local"
+
+  # Защита от подделки запросов. Без неё любой сайт, открытый в том же
+  # браузере, может отправить запрос в Jenkins от имени администратора.
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+
+  # ------------------------------------------------------------------ вход
+  securityRealm:
+    local:
+      # Регистрация самостоятельная запрещена: пользователей заводит
+      # администратор. Иначе любой, кто дотянулся до портала, создаст
+      # себе учётную запись.
+      allowsSignup: false
+      users:
+        - id: "engineer"
+          name: "Инженер"
+          password: "${JENKINS_ENGINEER_PASSWORD}"
+        - id: "serviceuser"
+          name: "Служебный пользователь"
+          password: "${JENKINS_SERVICE_PASSWORD}"
+
+  # ------------------------------------------------------------------ права
+  # Матрица прав: строки — пользователи и группы, столбцы — разрешения.
+  # Здесь она записана в виде «разрешение:кому».
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Overall/Administer:engineer"
+        # Анонимного доступа нет вообще: строки для anonymous отсутствуют,
+        # и это осознанное решение. Обратная сторона — вебхук от Gitea
+        # без учётных данных работать не будет (разбирается в практике 7).
+        - "Overall/Read:authenticated"
+        - "Agent/Connect:serviceuser"
+        - "Job/Build:serviceuser"
+        - "Job/Cancel:serviceuser"
+        - "Job/Read:serviceuser"
+        - "Job/Workspace:serviceuser"
+        - "View/Read:serviceuser"
+        # Credentials/View без Credentials/Update: служебный пользователь
+        # видит, что секрет существует, и может его использовать,
+        # но не может прочитать значение или подменить его.
+        - "Credentials/View:serviceuser"
+
+  # ------------------------------------------------------------------ агенты
+  # Постоянные агенты node1 и node2. Подключение по ssh ключом из
+  # credentials с идентификатором node-ssh.
+  #
+  # Про sshHostKeyVerificationStrategy: nonVerifyingKeyVerificationStrategy
+  # означает «не проверять отпечаток ключа сервера». Для лаборатории это
+  # приемлемо, для рабочей среды — нет: без проверки ключа трафик можно
+  # перенаправить на чужой сервер, и Jenkins этого не заметит.
+  # Правильный вариант — известный ключ хоста:
+  #     sshHostKeyVerificationStrategy:
+  #       knownHostsFileKeyVerificationStrategy: {}
+  nodes:
+    - permanent:
+        name: "node1"
+        nodeDescription: "Веб-сервер лаборатории и агент сборки"
+        remoteFS: "/home/jenkins/agent"
+        numExecutors: 2
+        mode: NORMAL
+        labelString: "web node1"
+        retentionStrategy: "always"
+        launcher:
+          ssh:
+            host: "10.0.2.13"
+            port: 22
+            credentialsId: "node-ssh"
+            sshHostKeyVerificationStrategy:
+              nonVerifyingKeyVerificationStrategy: {}
+    - permanent:
+        name: "node2"
+        nodeDescription: "Веб-сервер лаборатории, агент сборки и Docker-агент"
+        remoteFS: "/home/jenkins/agent"
+        numExecutors: 2
+        mode: NORMAL
+        labelString: "web node2 docker"
+        retentionStrategy: "always"
+        launcher:
+          ssh:
+            host: "10.0.2.14"
+            port: 22
+            credentialsId: "node-ssh"
+            sshHostKeyVerificationStrategy:
+              nonVerifyingKeyVerificationStrategy: {}
+
+# --------------------------------------------------------------- инструменты
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+
+# ------------------------------------------------ то, что не попало в разделы
+unclassified:
+  # Timestamper добавляет время к каждой строке журнала сборки.
+  # В конвейерах это надо включать явно (options { timestamps() }),
+  # а здесь мы включаем его сразу для всех конвейеров Jenkins.
+  timestamper:
+    allPipelines: true
+
+  # Общая библиотека конвейеров (практика 13). То же самое можно
+  # настроить руками в Manage Jenkins -> System -> Global Pipeline
+  # Libraries; здесь эта настройка описана кодом, чтобы библиотека
+  # не потерялась при переезде Jenkins.
+  #
+  # implicit: false — библиотеку подключают в Jenkinsfile строкой
+  # @Library('lab-shared-library@main') _, а не «по умолчанию для всех».
+  # Значение true сэкономило бы одну строку в каждом Jenkinsfile
+  # и одновременно сделало бы поведение конвейеров неочевидным.
+  globalLibraries:
+    libraries:
+      - name: "lab-shared-library"
+        defaultVersion: "main"
+        allowVersionOverride: true
+        implicit: false
+        retriever:
+          modernSCM:
+            scm:
+              git:
+                remote: "ssh://git@10.0.2.5:2222/engineer/jenkins-shared-library.git"
+                credentialsId: "gitea-reader"
+
+# ПРИМЕЧАНИЕ ПРО ПОЛНОТУ ФАЙЛА. Здесь описана только часть настроек —
+# та, которую стоит зафиксировать кодом сразу. Остальное (почта,
+# интервал тишины, ограничения на число параллельных сборок) удобнее
+# добавлять позже, и делать это надо не по памяти, а по экспорту:
+# Manage Jenkins -> Configuration as Code -> View Configuration
+# показывает текущее состояние ровно в формате этого файла.
+# Скопировали раздел, поправили, применили — так исключаются ошибки
+# в именах ключей, которые отличаются от версии к версии.
+
+# ------------------------------------------------------------------ секреты
+# Секреты описываются так же, как всё остальное, но их значения приходят
+# из переменных окружения. В файле не должно быть ни одного настоящего
+# пароля или ключа: этот файл кладут в git и показывают коллегам.
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          # Приватный ключ пользователя jenkins: им же подключаются агенты.
+          - basicSSHUserPrivateKey:
+              scope: GLOBAL
+              id: "node-ssh"
+              username: "jenkins"
+              description: "SSH-ключ агента: пользователь jenkins на node1 и node2"
+              privateKeySource:
+                directEntry:
+                  privateKey: "${NODE_SSH_PRIVATE_KEY}"
+
+          # Отдельный ключ для чтения репозитория Gitea.
+          - basicSSHUserPrivateKey:
+              scope: GLOBAL
+              id: "gitea-reader"
+              username: "git"
+              description: "SSH-ключ для репозиториев Gitea"
+              privateKeySource:
+                directEntry:
+                  privateKey: "${GITEA_SSH_PRIVATE_KEY}"
+
+          # Токен API Gitea: нужен, чтобы Jenkins мог читать список
+          # репозиториев и подтверждать вебхуки.
+          - string:
+              scope: GLOBAL
+              id: "gitea-token"
+              description: "Токен доступа к API Gitea"
+              secret: "${GITEA_TOKEN}"
+
+          # Учётная запись локального реестра образов.
+          - usernamePassword:
+              scope: GLOBAL
+              id: "docker-registry"
+              description: "Пользователь локального реестра образов"
+              username: "labuser"
+              password: "${REGISTRY_PASSWORD}"
+
+# ------------------------------------------------------------------ задания
+# Задания через JCasC описывать можно (раздел jobs:), но в курсе мы этого
+# не делаем намеренно. Причины две:
+#   * синтаксис описания задания в JCasC повторяет его XML, только в YAML:
+#     выигрыша в читаемости почти нет;
+#   * для конвейеров правильнее держать Jenkinsfile в репозитории рядом
+#     с кодом (практика 10), а не в конфигурации Jenkins.
+# Раздел jobs: в этом файле намеренно не заполнен — конвейеры описываются
+# Jenkinsfile в репозитории рядом с кодом (практика 10), а задания,
+# созданные в портале, живут в JENKINS_HOME и попадают в резервную копию
+# (практика 14), а не в конфигурацию как код.

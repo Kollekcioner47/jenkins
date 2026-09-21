@@ -1,0 +1,166 @@
+/*
+ * Jenkinsfile.docker — сборка образа и публикация в реестр лаборатории
+ * (практика 12).
+ *
+ * Идея: то, что раньше выкатывалось копированием файлов, здесь упаковано
+ * в образ. Образ — это уже готовый артефакт: его нельзя «доработать
+ * на сервере», он воспроизводится из Dockerfile побайтово.
+ *
+ * Куда публикуем: в свой реестр на контроллере (10.0.2.5:5000).
+ * Внешний Docker Hub здесь не нужен и вреден: он требует учётной записи,
+ * интернета и открывает наружу то, что должно оставаться в лаборатории.
+ *
+ * Требования к агенту: установлен Docker, а сам агент имеет метку docker
+ * (в практике 12 мы выдаём её серверу node2).
+ */
+
+pipeline {
+    agent { label 'docker' }
+
+    options {
+        timestamps()
+        timeout(time: 20, unit: 'MINUTES')
+        buildDiscarder(logRotator(numToKeepStr: '20'))
+        disableConcurrentBuilds()
+        skipDefaultCheckout(true)
+    }
+
+    environment {
+        REGISTRY = '10.0.2.5:5000'
+        IMAGE    = '10.0.2.5:5000/lab-site'
+        CONTAINER = 'lab-site-demo'
+        HOST_PORT = '8081'
+    }
+
+    stages {
+        stage('1. Забрать код') {
+            steps {
+                deleteDir()
+                checkout scm
+            }
+        }
+
+        stage('2. Подготовить контекст сборки') {
+            steps {
+                sh '''
+                    set -eu
+                    rm -rf build/docker-context
+                    mkdir -p build/docker-context
+
+                    cp files/www/index.html build/docker-context/index.html
+                    sed -i "s/__BUILD_NUMBER__/${BUILD_NUMBER}/g" build/docker-context/index.html
+                    sed -i "s/__GIT_COMMIT__/$(git rev-parse --short HEAD 2>/dev/null || echo unknown)/g" \
+                        build/docker-context/index.html
+
+                    cat > build/docker-context/build-info.txt <<EOF
+build_number=${BUILD_NUMBER}
+job=${JOB_NAME}
+agent=${NODE_NAME}
+EOF
+
+                    echo "контекст сборки:"
+                    ls -la build/docker-context
+                '''
+            }
+        }
+
+        stage('3. Собрать образ') {
+            steps {
+                sh '''
+                    set -eu
+                    # Два тега на один образ: неизменяемый (номер сборки)
+                    # и подвижный (latest). Разворачивать надо по неизменяемому:
+                    # тег latest означает «что-то свежее», и через неделю
+                    # за ним будет уже другой образ.
+                    docker build \
+                        --file files/docker/Dockerfile.site \
+                        --tag "${IMAGE}:${BUILD_NUMBER}" \
+                        --tag "${IMAGE}:latest" \
+                        build/docker-context
+                    docker images "${IMAGE}"
+                '''
+            }
+        }
+
+        stage('4. Проверить образ') {
+            steps {
+                sh '''
+                    set -eu
+                    # Образ собран — это ещё не значит, что он рабочий.
+                    # Запускаем и проверяем то, что он отдаёт.
+                    docker rm -f "${CONTAINER}-test" >/dev/null 2>&1 || true
+                    docker run -d --name "${CONTAINER}-test" -p "${HOST_PORT}:80" "${IMAGE}:${BUILD_NUMBER}"
+                    sleep 3
+                    curl -fsS "http://localhost:${HOST_PORT}/" | grep -q "Hello from DevOps Engineer"
+                    curl -fsS "http://localhost:${HOST_PORT}/build-info.txt" | grep -q "build_number=${BUILD_NUMBER}"
+                    echo "образ отвечает и содержит нужную сборку"
+                    docker rm -f "${CONTAINER}-test" >/dev/null
+                '''
+            }
+        }
+
+        stage('5. Опубликовать в реестр') {
+            steps {
+                // Пароль к реестру берётся из credentials и передаётся
+                // в docker login через stdin: он не попадает ни в историю
+                // команд, ни в лог сборки.
+                withCredentials([usernamePassword(
+                        credentialsId: 'docker-registry',
+                        usernameVariable: 'REG_USER',
+                        passwordVariable: 'REG_PASS')]) {
+                    sh '''
+                        set -eu
+                        echo "${REG_PASS}" | docker login "${REGISTRY}" \
+                            --username "${REG_USER}" --password-stdin
+                        docker push "${IMAGE}:${BUILD_NUMBER}"
+                        docker push "${IMAGE}:latest"
+                    '''
+                }
+            }
+        }
+
+        stage('6. Перезапустить контейнер') {
+            steps {
+                sh '''
+                    set -eu
+                    # Старый контейнер удаляем, новый поднимаем с тем же именем:
+                    # так повторный запуск выката не плодит контейнеры.
+                    docker rm -f "${CONTAINER}" >/dev/null 2>&1 || true
+                    docker run -d \
+                        --name "${CONTAINER}" \
+                        --restart unless-stopped \
+                        -p "${HOST_PORT}:80" \
+                        "${IMAGE}:${BUILD_NUMBER}"
+                    docker ps --filter "name=${CONTAINER}"
+                '''
+            }
+        }
+
+        stage('7. Проверить снаружи') {
+            steps {
+                sh '''
+                    set -eu
+                    sleep 2
+                    bash files/scripts/smoke_test.sh \
+                        "http://localhost:${HOST_PORT}/" \
+                        "Hello from DevOps Engineer" \
+                        "${BUILD_NUMBER}"
+                '''
+            }
+        }
+    }
+
+    post {
+        always {
+            // Выход из реестра: учётные данные не должны оставаться
+            // в файле ~/.docker/config.json на агенте.
+            sh 'docker logout "${REGISTRY}" >/dev/null 2>&1 || true'
+        }
+        failure {
+            sh '''
+                echo "контейнер не поднялся — вот его лог:"
+                docker logs --tail 50 "${CONTAINER}" 2>&1 || true
+            '''
+        }
+    }
+}
