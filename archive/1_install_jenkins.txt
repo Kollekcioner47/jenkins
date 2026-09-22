@@ -1,0 +1,26 @@
+https://www.jenkins.io/download/
+
+sudo apt update
+sudo apt install openjdk-17-jre
+java -version
+
+curl -fsSL https://pkg.jenkins.io/debian-stable/jenkins.io.key | sudo tee \
+  /usr/share/keyrings/jenkins-keyring.asc > /dev/null
+echo deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian-stable binary/ | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+sudo apt-get update
+sudo apt-get install jenkins
+
+sudo service jenkins status
+Мы должны увидеть, что Дженкинс установился
+
+вводим в браузере адрес и заходим на веб-сервис Jankins
+http://localhost:8080
+
+нужно узнать пароль, который записан в логе
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+копируем пароль и вставляем в поле веб-страницы
+
+install suggesting plugins
+
