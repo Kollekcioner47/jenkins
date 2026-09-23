@@ -30,6 +30,7 @@ pipeline {
         IMAGE    = '10.0.2.5:5000/lab-site'
         CONTAINER = 'lab-site-demo'
         HOST_PORT = '8081'
+        TEST_PORT = '8082'
     }
 
     stages {
@@ -88,11 +89,18 @@ EOF
                     set -eu
                     # Образ собран — это ещё не значит, что он рабочий.
                     # Запускаем и проверяем то, что он отдаёт.
+                    #
+                    # ПОЧЕМУ ПОРТ ПРОВЕРКИ ОТДЕЛЬНЫЙ (TEST_PORT = 8082).
+                    # Порт 8081 занят контейнером предыдущего выката:
+                    # снимает его стадия 6, а она идёт позже. Если взять
+                    # на проверку тот же порт, вторая сборка подряд упадёт
+                    # здесь с «port is already allocated». Отсюда правило:
+                    # у проверки образа и у выката порты разные.
                     docker rm -f "${CONTAINER}-test" >/dev/null 2>&1 || true
-                    docker run -d --name "${CONTAINER}-test" -p "${HOST_PORT}:80" "${IMAGE}:${BUILD_NUMBER}"
+                    docker run -d --name "${CONTAINER}-test" -p "${TEST_PORT}:80" "${IMAGE}:${BUILD_NUMBER}"
                     sleep 3
-                    curl -fsS "http://localhost:${HOST_PORT}/" | grep -q "Hello from DevOps Engineer"
-                    curl -fsS "http://localhost:${HOST_PORT}/build-info.txt" | grep -q "build_number=${BUILD_NUMBER}"
+                    curl -fsS "http://localhost:${TEST_PORT}/" | grep -q "Hello from DevOps Engineer"
+                    curl -fsS "http://localhost:${TEST_PORT}/build-info.txt" | grep -q "build_number=${BUILD_NUMBER}"
                     echo "образ отвечает и содержит нужную сборку"
                     docker rm -f "${CONTAINER}-test" >/dev/null
                 '''
