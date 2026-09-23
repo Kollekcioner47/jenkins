@@ -1,4 +1,5 @@
 # Реализация CI/CD на базе Jenkins
+<img width="1536" height="1024" alt="image" src="https://github.com/user-attachments/assets/1722fe42-e1f1-45cc-9028-6874a84ff507" />
 
 [![License: MIT](https://img.shields.io/badge/Code-MIT-yellow.svg)](LICENSE)
 [![Content License: CC BY-NC-SA 4.0](https://img.shields.io/badge/Content%20license-CC%20BY--NC--SA%204.0-lightgrey.svg)](LICENSE-CONTENT)
